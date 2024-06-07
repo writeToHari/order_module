@@ -39,13 +39,21 @@ exports.createOrderService = async (req) => {
         getOrderResult = checkOrderAlreadyExists
     }
     for (let j = 0; j < totalProductAmount[0]['product_details'].length; j++) {
+        var checkOrderExists = await orderItemsSchema.findOne({ order_id: getOrderResult['_id'], product_id: totalProductAmount[0]['product_details'][j]['_id'] })
         var prepareOrderItems = {}
-        prepareOrderItems['order_id'] = getOrderResult['_id']
-        prepareOrderItems['product_id'] = totalProductAmount[0]['product_details'][j]['_id']
-        prepareOrderItems['quantity'] = req.body.order_details.filter((ele) => ele['product_id'] === totalProductAmount[0]['product_details'][j]['_id'].toString())[0]['quantity']
-        prepareOrderItems['price'] = Number(prepareOrderItems['quantity']) * Number(totalProductAmount[0]['product_details'][j]['price'])
-        prepareOrderItems['discount'] = totalProductAmount[0]['product_details'][j]['discount_percentage']
-        await orderItemsSchema.create(prepareOrderItems)
+        if (!checkOrderExists) {
+            prepareOrderItems['order_id'] = getOrderResult['_id']
+            prepareOrderItems['product_id'] = totalProductAmount[0]['product_details'][j]['_id']
+            prepareOrderItems['quantity'] = req.body.order_details.filter((ele) => ele['product_id'] === totalProductAmount[0]['product_details'][j]['_id'].toString())[0]['quantity']
+            prepareOrderItems['price'] = Number(prepareOrderItems['quantity']) * Number(totalProductAmount[0]['product_details'][j]['price'])
+            prepareOrderItems['discount'] = totalProductAmount[0]['product_details'][j]['discount_percentage']
+            await orderItemsSchema.create(prepareOrderItems)
+        } else {
+            prepareOrderItems['quantity'] = req.body.order_details.filter((ele) => ele['product_id'] === totalProductAmount[0]['product_details'][j]['_id'].toString())[0]['quantity']
+            prepareOrderItems['price'] = Number(prepareOrderItems['quantity']) * Number(totalProductAmount[0]['product_details'][j]['price'])
+            prepareOrderItems['discount'] = totalProductAmount[0]['product_details'][j]['discount_percentage']
+            await orderItemsSchema.updateOne({ _id: checkOrderExists['_id'] }, { $set: prepareOrderItems })
+        }
     }
 
     var totalOrderItemsAmount = await orderItemsSchema.aggregate([{
@@ -92,7 +100,8 @@ exports.getOrderDetails = async (user_data) => {
                                 {
                                     '$project': {
                                         'title': 1,
-                                        'discount_percentage': 1
+                                        'discount_percentage': 1,
+                                        "original_price": "$price"
                                     }
                                 }
                             ]
